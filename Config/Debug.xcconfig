@@ -1,0 +1,5 @@
+#include "Base.xcconfig"
+
+// Self-signed code has no Team ID, so library validation rejects the debug dylib Xcode splits
+// out of the app.
+RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES
