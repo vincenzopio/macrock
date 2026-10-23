@@ -14,18 +14,23 @@ struct ToolkitImageTests {
     }
 
     /// The Toolkit's layout: D3DMetal and the license in an image inside the image.
-    func toolkit(withD3DMetal: Bool = true) async throws -> ToolkitImage {
+    func toolkit(
+        withD3DMetal: Bool = true, licenseAgreement: Bool = false
+    ) async throws -> ToolkitImage {
         let environment = temporary.url.appending(path: uniqueVolumeName())
         try FileManager.default.createDirectory(at: environment, withIntermediateDirectories: true)
         if withD3DMetal {
             try await makeD3DMetalLayout(at: environment.appending(path: "redist/lib"))
             try Data(#"{\rtf1 License}"#.utf8).write(to: environment.appending(path: "License.rtf"))
         }
+        let environmentImage = try await makeDiskImage(of: environment)
+        if licenseAgreement {
+            try await addLicenseAgreement(to: environmentImage)
+        }
         let toolkit = temporary.url.appending(path: uniqueVolumeName())
         try FileManager.default.createDirectory(at: toolkit, withIntermediateDirectories: true)
         try FileManager.default.moveItem(
-            at: try await makeDiskImage(of: environment),
-            to: toolkit.appending(path: "Evaluation environment.dmg"))
+            at: environmentImage, to: toolkit.appending(path: "Evaluation environment.dmg"))
         try Data().write(to: toolkit.appending(path: "Read Me.webloc"))
         return ToolkitImage(try await makeDiskImage(of: toolkit))
     }
@@ -45,6 +50,21 @@ struct ToolkitImageTests {
         }
         #expect(shown?.version == "4.0b2")
         #expect(shown.map { String(decoding: $0.rtf, as: UTF8.self) } == #"{\rtf1 License}"#)
+    }
+
+    @Test(.enabled(if: realToolkitImage != nil, "a person agrees, as with Apple's image"))
+    func macOSShowsAnAgreementThatDiskutilShowsOnlyInATerminal() async throws {
+        let image = try await toolkit(licenseAgreement: true)
+        do {
+            _ = try await image.importD3DMetal(into: directory, requiring: gptk("4")) { _ in
+                Issue.record("the license was shown again")
+                return true
+            }
+            Issue.record("D3DMetal signed ad hoc was imported")
+        } catch {
+            // Agreeing leads to the copy, which wants D3DMetal signed by Apple.
+            #expect(error is CodeSignatureError)
+        }
     }
 
     @Test func copiesNothingWhenTheLicenseIsDeclined() async throws {

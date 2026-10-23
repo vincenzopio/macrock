@@ -54,6 +54,12 @@ struct DiskImageTests {
         #expect(!DiskImage(image).carriesLicenseAgreement)
     }
 
+    @Test func anImageWithLicenseResourcesCarriesALicenseAgreement() async throws {
+        let (image, _) = try await image(holding: "hello")
+        try await addLicenseAgreement(to: image)
+        #expect(DiskImage(image).carriesLicenseAgreement)
+    }
+
     @Test func refusesAFileThatIsNotADiskImage() async throws {
         let file = temporary.url.appending(path: "notes.dmg")
         try Data("notes".utf8).write(to: file)

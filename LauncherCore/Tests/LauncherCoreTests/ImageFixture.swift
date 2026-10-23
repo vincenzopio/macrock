@@ -34,6 +34,34 @@ func makeDiskImage(of folder: URL) async throws -> URL {
     return image
 }
 
+/// Gives `image` a license agreement in US English whose text `diskutil` can read, so that it
+/// shows the agreement only in a terminal.
+func addLicenseAgreement(to image: URL) async throws {
+    func resource(_ data: Data) -> [String: Any] {
+        ["Attributes": "0x0000", "Data": data, "ID": "5000", "Name": "English"]
+    }
+    // The default language, then one language: US English, whose resources have ID 5000.
+    let languages = Data([0, 0, 0, 1, 0, 0, 0, 0, 0, 0])
+    let labels = [
+        "English", "Agree", "Disagree", "Print", "Save...", "Click Agree to attach the image.",
+        "License Agreement", "The text can't be saved.", "The text can't be printed.",
+    ]
+    var strings = Data([0, UInt8(labels.count)])
+    for label in labels {
+        strings.append(UInt8(label.utf8.count))
+        strings.append(contentsOf: label.utf8)
+    }
+    let resources: [String: Any] = [
+        "LPic": [resource(languages)], "STR#": [resource(strings)],
+        "TEXT": [resource(Data("macrock test license".utf8))],
+    ]
+    let file = image.deletingPathExtension().appendingPathExtension("resources.plist")
+    try PropertyListSerialization.data(fromPropertyList: resources, format: .xml, options: 0)
+        .write(to: file)
+    // `udifrez` is deprecated, but nothing else embeds resources in an image.
+    try await runTool("/usr/bin/hdiutil", ["udifrez", "-xml", file.path, "", "-quiet", image.path])
+}
+
 func uniqueVolumeName() -> String {
     "macrock-test-\(UUID().uuidString.prefix(8))"
 }

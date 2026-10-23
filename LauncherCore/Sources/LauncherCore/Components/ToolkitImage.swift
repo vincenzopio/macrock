@@ -96,7 +96,7 @@ public struct ToolkitImage: Sendable {
     }
 
     /// Mounts an image, telling `body` whether it carries a license agreement: macOS attaches
-    /// such an image only once the user agrees, so failing to attach it means they declined.
+    /// such an image only once the user agrees.
     private static func mount<Value>(
         _ url: URL, _ body: (URL, _ agreed: Bool) async throws -> Value
     ) async throws -> Value {
@@ -104,7 +104,7 @@ public struct ToolkitImage: Sendable {
         let agreement = image.carriesLicenseAgreement
         do {
             return try await image.withMounted { try await body($0, agreement) }
-        } catch DiskImageError.notADiskImage where agreement {
+        } catch DiskImageError.licenseDeclined {
             throw GraphicsError.licenseDeclined
         }
     }
